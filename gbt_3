@@ -1,0 +1,56 @@
+import machine
+import network
+import usocket as socket
+import mywifi
+
+# Set up the LED on GPIO 2
+led = machine.Pin(2, machine.Pin.OUT)
+
+# Connect to Wi-Fi using credentials from mywifi.py
+def connect_to_wifi():
+    ssid, password = mywifi.networksetting()
+    wifi = network.WLAN(network.STA_IF)
+    wifi.active(True)
+    wifi.connect(ssid, password)
+    while not wifi.isconnected():
+        pass
+    print("Connected to WiFi")
+
+# Start the server to handle requests
+
+def start_server():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 80))
+    s.listen(5)
+    print("Server started")
+
+    while True:
+        conn, addr = s.accept()
+        print("Got a connection from %s" % str(addr))
+        request = conn.recv(1024)
+        request = str(request)
+
+        if 'GET /?LED=ON' in request:
+            led.value(1)
+        if 'GET /?LED=OFF' in request:
+            led.value(0)
+
+        response = """HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"""
+        response += """<!DOCTYPE html>
+<html>
+<head><title>LED Control</title></head>
+<body>
+<h1>LED Control</h1>
+<form>
+LED: 
+<button name="LED" value="ON" type="submit">ON</button>
+<button name="LED" value="OFF" type="submit">OFF</button>
+</form>
+</body>
+</html>"""
+
+        conn.sendall(response)
+        conn.close()
+        
+connect_to_wifi()
+start_server()
