@@ -1,0 +1,63 @@
+import machine
+import network
+import usocket as socket
+import mywifi
+
+# Set up the LED on GPIO 0 (GP0)
+led = machine.Pin(0)
+pwm = machine.PWM(led)
+
+# Connect to Wi-Fi using credentials from mywifi.py
+def connect_to_wifi():
+    ssid, password = mywifi.networksetting()
+    wifi = network.WLAN(network.STA_IF)
+    wifi.active(True)
+    wifi.connect(ssid, password)
+    while not wifi.isconnected():
+        pass
+    print("Connected to WiFi")
+
+# Start the server to handle requests
+def start_server():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 80))
+    s.listen(5)
+    print("Server started")
+
+    while True:
+        conn, addr = s.accept()
+        print("Got a connection from %s" % str(addr))
+        request = conn.recv(1024)
+        request = str(request)
+
+        led_brightness = 0  # Default LED brightness
+
+        if 'GET /?brightness=' in request:
+            # Extract brightness value from the request
+            start = request.find('GET /?brightness=') + len('GET /?brightness=')
+            end = request.find(' ', start)
+            brightness_value = int(request[start:end])
+            led_brightness = brightness_value
+
+            # Update LED brightness using PWM
+            pwm.duty_u16(led_brightness)
+
+        response = """HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"""
+        response += """<!DOCTYPE html>
+<html>
+<head><title>LED Brightness Control</title></head>
+<body>
+<h1>LED Brightness Control</h1>
+<p>Brightness: {}</p>
+<form action="/" method="get">
+    <input type="range" name="brightness" min="0" max="65535" value="{}" onchange="this.form.submit()">
+</form>
+</body>
+</html>""".format(led_brightness, led_brightness)  # Display current brightness
+
+        conn.sendall(response)
+        conn.close()
+
+connect_to_wifi()
+start_server()
+
