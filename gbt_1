@@ -1,0 +1,28 @@
+import network
+import time
+from mywifi import networksetting
+
+# Get WiFi credentials from mywifi module
+ssid, password = networksetting()
+
+# Connect to WiFi
+def connect_to_wifi(ssid, password):
+    wlan = network.WLAN(network.STA_IF)  # Create a WLAN object in station mode
+    wlan.active(True)  # Activate the WLAN interface
+
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(ssid, password)
+        while not wlan.isconnected():
+            pass
+    print("Connected to WiFi")
+    print("IP address:", wlan.ifconfig()[0])
+
+# Call the connect_to_wifi function
+connect_to_wifi(ssid, password)
+
+# Your main code here
+while True:
+    # Your code here
+    pass
+
