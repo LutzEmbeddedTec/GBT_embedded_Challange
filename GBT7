@@ -1,0 +1,73 @@
+import machine
+import network
+import usocket as socket
+import utime
+import mywifi
+
+# Set up the LED on GPIO 0 (GP0) and the button on GPIO 2 (GP2)
+led = machine.Pin(0)
+button = machine.Pin(2, machine.Pin.IN, machine.Pin.PULL_UP)
+pwm = machine.PWM(led)
+
+# Connect to Wi-Fi using credentials from mywifi.py
+def connect_to_wifi():
+    ssid, password = mywifi.networksetting()
+    wifi = network.WLAN(network.STA_IF)
+    wifi.active(True)
+    wifi.connect(ssid, password)
+    while not wifi.isconnected():
+        pass
+    print("Connected to WiFi")
+
+# Button press callback to adjust LED brightness
+def button_callback(pin):
+    global led_brightness, last_time
+    current_time = utime.ticks_ms()
+    if utime.ticks_diff(current_time, last_time) > 300:  # Debounce time of 300 ms
+        led_brightness += 6553  # Increase brightness by 10%
+        if led_brightness >= 65535:  # 100% brightness
+            led_brightness = 0  # Turn off the LED
+
+        # Update LED brightness using PWM
+        pwm.duty_u16(led_brightness)
+        last_time = current_time
+
+# Set up button press interrupt
+last_time = 0
+button.irq(trigger=machine.Pin.IRQ_FALLING, handler=button_callback)
+
+# Start the server to handle requests
+def start_server():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 80))
+    s.listen(5)
+    print("Server started")
+
+    global led_brightness  # Declare led_brightness as a global variable
+    led_brightness = 0  # Initial LED brightness
+
+    while True:
+        conn, addr = s.accept()
+        print("Got a connection from %s" % str(addr))
+        request = conn.recv(1024)
+        request = str(request)
+
+        response = """HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"""
+        response += """<!DOCTYPE html>
+<html>
+<head><title>LED Brightness Control</title></head>
+<body>
+<h1>LED Brightness Control</h1>
+<p>Brightness: {}%</p>
+<form action="/" method="get">
+    <input type="range" name="brightness" min="0" max="65535" value="{}" onchange="this.form.submit()">
+</form>
+</body>
+</html>""".format(int(led_brightness * 100 / 65535), led_brightness)  # Display current brightness as percentage
+
+        conn.sendall(response)
+        conn.close()
+
+connect_to_wifi()
+start_server()
+
